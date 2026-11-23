@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Testing
+.pytest_cache/
+
+# Linting
+.ruff_cache/
+
+# Environment variables
+.env
+
+# OpenCode local configuration (machine-specific paths)
+opencode.jsonc
+
+# Build/distribution artifacts
+dist/
+build/
+*.egg-info/

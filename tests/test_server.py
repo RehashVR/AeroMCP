@@ -1,6 +1,6 @@
 """MCP server integration tests for AeroMCP.
 
-These tests exercise the six registered MCP tools through the SDK's
+These tests exercise the ten registered MCP tools through the SDK's
 in-memory Client, verifying that the server correctly wraps the existing
 engineering calculation functions.
 """
@@ -126,7 +126,7 @@ def test_calculate_reynolds_number() -> None:
 
 
 def test_tools_are_registered() -> None:
-    """All six expected tools are registered with the MCP server."""
+    """All ten expected tools are registered with the MCP server."""
     tools = asyncio.run(_list_tool_names())
     expected = {
         "calculate_dynamic_pressure",
@@ -135,6 +135,10 @@ def test_tools_are_registered() -> None:
         "calculate_lift_coefficient",
         "calculate_reynolds_number",
         "calculate_isa_troposphere",
+        "calculate_circular_orbital_velocity",
+        "calculate_orbital_period",
+        "calculate_escape_velocity",
+        "calculate_hohmann_transfer",
     }
     assert expected.issubset(tools)
 
@@ -327,7 +331,7 @@ def test_calculate_isa_troposphere_altitude_above_max() -> None:
 
 def test_calculate_isa_troposphere_discoverable() -> None:
     """calculate_isa_troposphere is discoverable alongside all five
-    existing aerodynamic tools."""
+    existing aerodynamic tools and all four astrodynamics tools."""
     tools = asyncio.run(_list_tool_names())
     expected = {
         "calculate_dynamic_pressure",
@@ -336,5 +340,200 @@ def test_calculate_isa_troposphere_discoverable() -> None:
         "calculate_lift_coefficient",
         "calculate_reynolds_number",
         "calculate_isa_troposphere",
+        "calculate_circular_orbital_velocity",
+        "calculate_orbital_period",
+        "calculate_escape_velocity",
+        "calculate_hohmann_transfer",
     }
     assert expected.issubset(tools)
+
+
+MU_EARTH = 3.986004418e14
+
+
+def test_calculate_circular_orbital_velocity() -> None:
+    """Circular orbital velocity at r = 7,000,000 m around Earth."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_circular_orbital_velocity",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "orbital_radius_m": 7_000_000.0,
+            },
+        )
+    )
+    data = _parse_tool_result(result)
+    assert data["result"] == pytest.approx(7546.053290107542)
+    assert data["unit"] == "m/s"
+    assert data["equation"] == "v = sqrt(mu / r)"
+
+
+def test_calculate_orbital_period() -> None:
+    """Orbital period at a = 7,000,000 m around Earth."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_orbital_period",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "semi_major_axis_m": 7_000_000.0,
+            },
+        )
+    )
+    data = _parse_tool_result(result)
+    assert data["result"] == pytest.approx(5828.516637686015)
+    assert data["unit"] == "s"
+    assert data["equation"] == "T = 2 * pi * sqrt(a**3 / mu)"
+
+
+def test_calculate_escape_velocity() -> None:
+    """Escape velocity at r = 7,000,000 m around Earth."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_escape_velocity",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "distance_from_center_m": 7_000_000.0,
+            },
+        )
+    )
+    data = _parse_tool_result(result)
+    assert data["result"] == pytest.approx(10671.730905260201)
+    assert data["unit"] == "m/s"
+    assert data["equation"] == "v_escape = sqrt(2 * mu / r)"
+
+
+def test_calculate_hohmann_transfer_outward() -> None:
+    """Outward Hohmann transfer from 7,000 km to 42,164 km around Earth."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_hohmann_transfer",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "initial_orbit_radius_m": 7_000_000.0,
+                "final_orbit_radius_m": 42_164_000.0,
+            },
+        )
+    )
+    assert result.is_error is False
+    text = result.content[0].text
+    data = json.loads(text)
+    assert data["model"] == "Two-body impulsive Hohmann transfer"
+    assert data["assumptions"] == [
+        "Initial and final circular orbits",
+        "Coplanar transfer",
+        "Two instantaneous tangential burns",
+        "Constant central-body gravitational parameter",
+    ]
+    res = data["result"]
+    assert res["initial_orbit_radius_m"] == pytest.approx(7_000_000.0)
+    assert res["final_orbit_radius_m"] == pytest.approx(42_164_000.0)
+    assert res["transfer_semi_major_axis_m"] == pytest.approx(24_582_000.0)
+    assert res["departure_delta_v_m_s"] == pytest.approx(2336.7957823862034, rel=1e-9)
+    assert res["arrival_delta_v_m_s"] == pytest.approx(1433.9314509179262, rel=1e-9)
+    assert res["total_delta_v_m_s"] == pytest.approx(3770.7272333041296, rel=1e-9)
+    assert res["transfer_time_s"] == pytest.approx(19178.15420570903, rel=1e-9)
+    assert res["transfer_direction"] == "outward"
+    assert res["burn_direction"] == "prograde"
+    units = data["units"]
+    assert units["initial_orbit_radius_m"] == "m"
+    assert units["final_orbit_radius_m"] == "m"
+    assert units["transfer_semi_major_axis_m"] == "m"
+    assert units["departure_delta_v_m_s"] == "m/s"
+    assert units["arrival_delta_v_m_s"] == "m/s"
+    assert units["total_delta_v_m_s"] == "m/s"
+    assert units["transfer_time_s"] == "s"
+    assert units["transfer_direction"] == "dimensionless"
+    assert units["burn_direction"] == "dimensionless"
+
+
+def test_calculate_hohmann_transfer_inward() -> None:
+    """Inward Hohmann transfer from 42,164 km to 7,000 km around Earth."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_hohmann_transfer",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "initial_orbit_radius_m": 42_164_000.0,
+                "final_orbit_radius_m": 7_000_000.0,
+            },
+        )
+    )
+    assert result.is_error is False
+    text = result.content[0].text
+    data = json.loads(text)
+    res = data["result"]
+    assert res["transfer_direction"] == "inward"
+    assert res["burn_direction"] == "retrograde"
+    assert res["total_delta_v_m_s"] == pytest.approx(3770.7272333041296, rel=1e-9)
+    assert res["transfer_time_s"] == pytest.approx(19178.15420570903, rel=1e-9)
+
+
+def test_calculate_circular_orbital_velocity_zero_mu() -> None:
+    """Zero gravitational parameter must produce a tool error."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_circular_orbital_velocity",
+            {
+                "central_body_mu_m3_s2": 0.0,
+                "orbital_radius_m": 7_000_000.0,
+            },
+        )
+    )
+    assert result.is_error is True
+
+
+def test_calculate_circular_orbital_velocity_negative_mu() -> None:
+    """Negative gravitational parameter must produce a tool error."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_circular_orbital_velocity",
+            {
+                "central_body_mu_m3_s2": -MU_EARTH,
+                "orbital_radius_m": 7_000_000.0,
+            },
+        )
+    )
+    assert result.is_error is True
+
+
+def test_calculate_circular_orbital_velocity_zero_radius() -> None:
+    """Zero orbital radius must produce a tool error."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_circular_orbital_velocity",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "orbital_radius_m": 0.0,
+            },
+        )
+    )
+    assert result.is_error is True
+
+
+def test_calculate_circular_orbital_velocity_negative_radius() -> None:
+    """Negative orbital radius must produce a tool error."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_circular_orbital_velocity",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "orbital_radius_m": -7_000_000.0,
+            },
+        )
+    )
+    assert result.is_error is True
+
+
+def test_calculate_hohmann_transfer_equal_radii() -> None:
+    """Equal Hohmann orbit radii must produce a tool error."""
+    result = asyncio.run(
+        _call_tool(
+            "calculate_hohmann_transfer",
+            {
+                "central_body_mu_m3_s2": MU_EARTH,
+                "initial_orbit_radius_m": 7_000_000.0,
+                "final_orbit_radius_m": 7_000_000.0,
+            },
+        )
+    )
+    assert result.is_error is True

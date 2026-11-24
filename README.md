@@ -29,19 +29,18 @@ through the standardized Model Context Protocol.
 | Lift coefficient | Compute CL = L / (q × S) from lift force, density, velocity, and area |
 | Reynolds number | Compute Re = ρ × V × L / μ from flow and fluid properties |
 | ISA troposphere | Compute temperature, pressure, density, speed of sound for geopotential altitudes 0–11000 m (1976 U.S. Standard Atmosphere) |
-| MCP server | Six registered tools exposing the above calculations via STDIO transport |
+| MCP server | Ten registered tools exposing the above calculations via STDIO transport |
 
 ### Future Plans (Not Implemented)
 
 - Compressible flow calculations (isentropic flow, shocks, expansion fans)
 - Propulsion analysis (thrust, specific impulse, engine cycles)
-- Astrodynamics (orbital mechanics, propagation)
 - Multilayer ISA (stratosphere and above)
 - HTTP/SSE transport for MCP server
 
 ## MCP Tools
 
-The following six tools are registered on the AeroMCP MCP server:
+The following ten tools are registered on the AeroMCP MCP server:
 
 | Tool | Description | Output Unit |
 |------|-------------|-------------|
@@ -51,15 +50,19 @@ The following six tools are registered on the AeroMCP MCP server:
 | `calculate_lift_coefficient` | Dimensionless lift coefficient from lift force, density, velocity, area | dimensionless |
 | `calculate_reynolds_number` | Dimensionless Reynolds number from flow properties | dimensionless |
 | `calculate_isa_troposphere` | ISA tropospheric properties from geopotential altitude | K, Pa, kg/m³, m/s |
+| `calculate_circular_orbital_velocity` | Circular orbital velocity from gravitational parameter and radius | m/s |
+| `calculate_orbital_period` | Keplerian orbital period from gravitational parameter and semi-major axis | s |
+| `calculate_escape_velocity` | Escape velocity from gravitational parameter and distance | m/s |
+| `calculate_hohmann_transfer` | Hohmann transfer Delta-V budget and transfer time | structured |
 
 ## Architecture
 
 AeroMCP follows a clean separation between engineering computation and MCP
 communication:
 
-- **Engineering layer** (`src/aeromcp/core/`, `aerodynamics/`, `atmosphere/`):
-  Pure Python functions with no MCP dependency. Independently usable and
-  testable.
+- **Engineering layer** (`src/aeromcp/core/`, `aerodynamics/`, `atmosphere/`,
+  `astrodynamics/`): Pure Python functions with no MCP dependency.
+  Independently usable and testable.
 - **MCP layer** (`src/aeromcp/server.py`): A thin interface that wraps
   engineering functions as MCP tools.
 
@@ -69,9 +72,10 @@ graph TD
         Core["core/ — validation, constants"]
         Aero["aerodynamics/ — lift, drag, Reynolds number"]
         Atmos["atmosphere/ — ISA troposphere"]
+        Astro["astrodynamics/ — orbital mechanics"]
     end
     subgraph MCP_Layer ["MCP Communication Layer"]
-        Server["server.py — MCPServer with 6 tools"]
+        Server["server.py — MCPServer with 10 tools"]
     end
     subgraph AI_Client ["AI Client (OpenCode, etc.)"]
         Client["MCP Client via STDIO"]
@@ -79,8 +83,10 @@ graph TD
 
     Core --> Aero
     Core --> Atmos
+    Core --> Astro
     Aero --> Server
     Atmos --> Server
+    Astro --> Server
     Server --> Client
 ```
 
@@ -165,6 +171,59 @@ props = isa_troposphere(geopotential_altitude_m=0.0)
 }
 ```
 
+### Circular Orbital Velocity
+
+```python
+from aeromcp.astrodynamics import circular_orbital_velocity
+
+MU_EARTH = 3.986004418e14
+
+v = circular_orbital_velocity(
+    central_body_mu_m3_s2=MU_EARTH, orbital_radius_m=7_000_000.0
+)
+# Result: 7546.05 m/s
+```
+
+### Orbital Period
+
+```python
+from aeromcp.astrodynamics import orbital_period
+
+MU_EARTH = 3.986004418e14
+
+T = orbital_period(central_body_mu_m3_s2=MU_EARTH, semi_major_axis_m=7_000_000.0)
+# Result: 5828.52 s
+```
+
+### Escape Velocity
+
+```python
+from aeromcp.astrodynamics import escape_velocity
+
+MU_EARTH = 3.986004418e14
+
+v_esc = escape_velocity(
+    central_body_mu_m3_s2=MU_EARTH, distance_from_center_m=7_000_000.0
+)
+# Result: 10671.73 m/s
+```
+
+### Hohmann Transfer
+
+```python
+from aeromcp.astrodynamics import hohmann_transfer
+
+MU_EARTH = 3.986004418e14
+
+result = hohmann_transfer(
+    central_body_mu_m3_s2=MU_EARTH,
+    initial_orbit_radius_m=7_000_000.0,
+    final_orbit_radius_m=42_164_000.0,
+)
+# Result: total Delta-V ≈ 3770.73 m/s, transfer time ≈ 19178.15 s
+```
+
+
 ## Engineering Equations
 
 | Calculation | Equation | SI Units |
@@ -178,6 +237,10 @@ props = isa_troposphere(geopotential_altitude_m=0.0)
 | ISA pressure | P = P₀ × (T/T₀)^(g₀/(R×L)) | Pa |
 | ISA density | ρ = P / (R × T) | kg/m³ |
 | ISA speed of sound | a = √(γ × R × T) | m/s |
+| Circular orbital velocity | v = √(μ / r) | m/s |
+| Orbital period | T = 2π × √(a³ / μ) | s |
+| Escape velocity | v_escape = √(2 × μ / r) | m/s |
+| Hohmann transfer | a_t = (r1 + r2) / 2, dv_total = dv1 + dv2 | m/s, s |
 
 ## ISA Model Scope and Assumptions
 
@@ -187,6 +250,32 @@ props = isa_troposphere(geopotential_altitude_m=0.0)
 - **Assumptions:** Dry air, hydrostatic equilibrium, ideal gas behaviour,
   constant gravitational acceleration, constant specific gas constant,
   constant ratio of specific heats
+
+## Astrodynamics Model Scope and Assumptions
+
+- **Model:** Two-body impulsive orbital mechanics
+- **Gravitational parameter:** Supplied by the caller as μ = G × M
+  (no central-body database or Earth-specific constants hardcoded)
+- **Input units:** Orbital radius and distance measured from the central
+  body's centre (not from its surface)
+- **Output units:** SI units (m/s for velocity, s for period/time)
+- **Assumptions:** Circular initial and final orbits, coplanar transfer,
+  two instantaneous tangential burns, constant central-body gravitational
+  parameter
+
+### Earth Reference Example
+
+| Parameter | Value |
+|-----------|-------|
+| Gravitational parameter (μ) | 3.986004418 × 10¹⁴ m³/s² |
+| Initial orbit radius | 7,000,000 m |
+| Final orbit radius | 42,164,000 m |
+| Circular orbital velocity | 7546.05 m/s |
+| Orbital period | 5828.52 s |
+| Escape velocity | 10671.73 m/s |
+| Hohmann total Delta-V | ≈ 3770.73 m/s |
+| Hohmann transfer time | ≈ 19178.15 s |
+
 
 ## Testing
 
@@ -203,10 +292,11 @@ python -m pytest -v
 | Test File | Tests |
 |-----------|-------|
 | tests/test_aerodynamics.py | 84 |
+| tests/test_astrodynamics.py | 62 |
 | tests/test_atmosphere.py | 15 |
 | tests/test_package.py | 2 |
-| tests/test_server.py | 17 |
-| **Total** | **118** |
+| tests/test_server.py | 27 |
+| **Total** | **190** |
 
 ## Contribution Instructions
 
@@ -222,10 +312,10 @@ The following items are planned for future releases:
 
 1. **Atmosphere module** — ISA troposphere (complete)
 2. **Aerodynamics module** — lift, drag, Reynolds number (complete)
-3. **MCP server** — six registered tools (complete)
-4. **Compressible flow module** — isentropic flow, shocks (planned)
-5. **Propulsion module** — thrust, engine performance (planned)
-6. **Astrodynamics module** — orbital mechanics (planned)
+3. **Astrodynamics module** — orbital mechanics (complete)
+4. **MCP server** — ten registered tools (complete)
+5. **Compressible flow module** — isentropic flow, shocks (planned)
+6. **Propulsion module** — thrust, engine performance (planned)
 7. **Packaging and release** — PyPI publication (planned)
 
 ## Technology Stack
@@ -240,6 +330,9 @@ The following items are planned for future releases:
 
 - ISA implementation currently covers only 0–11000 m geopotential altitude
   (tropospheric layer only). Stratosphere and higher layers are not implemented.
+- Orbital calculations use ideal two-body models. Atmospheric drag and
+  perturbations are not modelled.
+- Hohmann transfers use impulsive burns and assume circular, coplanar orbits.
 - MCP currently uses local STDIO transport only. No remote HTTP deployment
   is implemented.
 - AeroMCP is an engineering computation toolkit. It is **not** certified

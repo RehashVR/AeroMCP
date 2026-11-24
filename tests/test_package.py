@@ -9,5 +9,5 @@ def test_package_imports():
 
 
 def test_version():
-    """The package version should be 0.1.0."""
-    assert __version__ == "0.1.0"
+    """The package version should be 0.2.0."""
+    assert __version__ == "0.2.0"

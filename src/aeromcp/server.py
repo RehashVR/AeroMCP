@@ -21,6 +21,12 @@ from aeromcp.aerodynamics import (
     lift_force,
     reynolds_number,
 )
+from aeromcp.astrodynamics import (
+    circular_orbital_velocity,
+    escape_velocity,
+    hohmann_transfer,
+    orbital_period,
+)
 from aeromcp.atmosphere import isa_troposphere
 
 logger = logging.getLogger(__name__)
@@ -268,6 +274,188 @@ def calculate_isa_troposphere(
         },
         "model": "1976 U.S. Standard Atmosphere - Troposphere",
         "valid_altitude_range_m": [0.0, 11000.0],
+    }
+
+
+@mcp.tool()
+def calculate_circular_orbital_velocity(
+    central_body_mu_m3_s2: float,
+    orbital_radius_m: float,
+) -> dict:
+    """Calculate circular orbital velocity from gravitational parameter and radius.
+
+    Determines the velocity required for a circular orbit around a central
+    body at a given orbital radius.
+
+    Required inputs:
+        central_body_mu_m3_s2: Gravitational parameter of the central body in
+                               cubic metres per second squared (m^3/s^2).
+                               Must be strictly positive. Supplied by the
+                               caller as mu = G * M.
+        orbital_radius_m: Orbital radius in metres (m), measured from the
+                          central body's centre (not from its surface).
+                          Must be strictly positive.
+
+    Returns:
+        A dictionary with the circular orbital velocity in metres per second
+        (m/s), the SI unit, and the governing equation.
+
+    Governing equation:
+        v = sqrt(mu / r)
+    """
+    result = circular_orbital_velocity(central_body_mu_m3_s2, orbital_radius_m)
+    return {
+        "result": result,
+        "unit": "m/s",
+        "equation": "v = sqrt(mu / r)",
+    }
+
+
+@mcp.tool()
+def calculate_orbital_period(
+    central_body_mu_m3_s2: float,
+    semi_major_axis_m: float,
+) -> dict:
+    """Calculate Keplerian orbital period from gravitational parameter and
+    semi-major axis.
+
+    Determines the period of a bound elliptical orbit around a central body.
+    For circular orbits, the semi-major axis equals the orbital radius.
+
+    Required inputs:
+        central_body_mu_m3_s2: Gravitational parameter of the central body in
+                               cubic metres per second squared (m^3/s^2).
+                               Must be strictly positive. Supplied by the
+                               caller as mu = G * M.
+        semi_major_axis_m: Semi-major axis in metres (m). Must be strictly
+                           positive.
+
+    Returns:
+        A dictionary with the orbital period in seconds (s), the SI unit,
+        and the governing equation.
+
+    Governing equation:
+        T = 2 * pi * sqrt(a**3 / mu)
+    """
+    result = orbital_period(central_body_mu_m3_s2, semi_major_axis_m)
+    return {
+        "result": result,
+        "unit": "s",
+        "equation": "T = 2 * pi * sqrt(a**3 / mu)",
+    }
+
+
+@mcp.tool()
+def calculate_escape_velocity(
+    central_body_mu_m3_s2: float,
+    distance_from_center_m: float,
+) -> dict:
+    """Calculate escape velocity from gravitational parameter and distance.
+
+    Determines the minimum velocity required for an object to escape the
+    gravitational influence of a central body from a given distance.
+
+    Required inputs:
+        central_body_mu_m3_s2: Gravitational parameter of the central body in
+                               cubic metres per second squared (m^3/s^2).
+                               Must be strictly positive. Supplied by the
+                               caller as mu = G * M.
+        distance_from_center_m: Distance from the central body's centre in
+                                metres (m) (not from its surface). Must be
+                                strictly positive.
+
+    Returns:
+        A dictionary with the escape velocity in metres per second (m/s),
+        the SI unit, and the governing equation.
+
+    Governing equation:
+        v_escape = sqrt(2 * mu / r)
+    """
+    result = escape_velocity(central_body_mu_m3_s2, distance_from_center_m)
+    return {
+        "result": result,
+        "unit": "m/s",
+        "equation": "v_escape = sqrt(2 * mu / r)",
+    }
+
+
+@mcp.tool()
+def calculate_hohmann_transfer(
+    central_body_mu_m3_s2: float,
+    initial_orbit_radius_m: float,
+    final_orbit_radius_m: float,
+) -> dict:
+    """Calculate Hohmann transfer Delta-V budget and transfer time between two
+    circular orbits.
+
+    Determines the Delta-V budget and transfer time for a two-impulse Hohmann
+    transfer between two coplanar circular orbits around the same central body.
+
+    Required inputs:
+        central_body_mu_m3_s2: Gravitational parameter of the central body in
+                               cubic metres per second squared (m^3/s^2).
+                               Must be strictly positive. Supplied by the
+                               caller as mu = G * M.
+        initial_orbit_radius_m: Initial circular orbit radius in metres (m),
+                                measured from the central body's centre
+                                (not from its surface). Must be strictly
+                                positive.
+        final_orbit_radius_m: Final circular orbit radius in metres (m),
+                              measured from the central body's centre
+                              (not from its surface). Must be strictly
+                              positive and not equal to the initial orbit
+                              radius.
+
+    Returns:
+        A structured dictionary containing:
+
+        * ``result``: Hohmann transfer parameters including orbit radii,
+          transfer semi-major axis, departure/arrival/total Delta-V,
+          transfer time, transfer direction, and burn direction.
+        * ``units``: SI units for every numerical result property.
+        * ``model``: The transfer model identifier string.
+        * ``assumptions``: A list of modelling assumptions.
+
+    Governing equations:
+        Transfer semi-major axis:   a_t = (r1 + r2) / 2
+        Initial circular velocity:  vc1 = sqrt(mu / r1)
+        Final circular velocity:    vc2 = sqrt(mu / r2)
+        Transfer velocity at departure: vt1 = sqrt(mu * (2/r1 - 1/a_t))
+        Transfer velocity at arrival:   vt2 = sqrt(mu * (2/r2 - 1/a_t))
+        Departure Delta-V:          dv1 = abs(vt1 - vc1)
+        Arrival Delta-V:            dv2 = abs(vc2 - vt2)
+        Total Delta-V:              dv_total = dv1 + dv2
+        Transfer time:              t = pi * sqrt(a_t**3 / mu)
+
+    Model assumptions:
+        - Initial and final circular orbits
+        - Coplanar transfer
+        - Two instantaneous tangential burns
+        - Constant central-body gravitational parameter
+    """
+    result = hohmann_transfer(
+        central_body_mu_m3_s2, initial_orbit_radius_m, final_orbit_radius_m
+    )
+    return {
+        "result": result,
+        "units": {
+            "initial_orbit_radius_m": "m",
+            "final_orbit_radius_m": "m",
+            "transfer_semi_major_axis_m": "m",
+            "departure_delta_v_m_s": "m/s",
+            "arrival_delta_v_m_s": "m/s",
+            "total_delta_v_m_s": "m/s",
+            "transfer_time_s": "s",
+            "transfer_direction": "dimensionless",
+            "burn_direction": "dimensionless",
+        },
+        "model": "Two-body impulsive Hohmann transfer",
+        "assumptions": [
+            "Initial and final circular orbits",
+            "Coplanar transfer",
+            "Two instantaneous tangential burns",
+            "Constant central-body gravitational parameter",
+        ],
     }
 
 

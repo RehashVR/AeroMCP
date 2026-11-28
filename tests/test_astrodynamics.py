@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from aeromcp.astrodynamics import (
+from aeromcp_engineering.astrodynamics import (
     circular_orbital_velocity,
     escape_velocity,
     hohmann_transfer,

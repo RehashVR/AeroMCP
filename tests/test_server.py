@@ -13,7 +13,7 @@ import json
 import pytest
 from mcp import Client
 
-from aeromcp.server import mcp
+from aeromcp_engineering.server import mcp
 
 
 async def _call_tool(tool_name: str, arguments: dict):

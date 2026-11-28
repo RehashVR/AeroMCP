@@ -17,6 +17,9 @@ __pycache__/
 # OpenCode local configuration (machine-specific paths)
 opencode.jsonc
 
+# Antigravity workspace MCP configuration (machine-specific paths)
+.agents/
+
 # Build/distribution artifacts
 dist/
 build/

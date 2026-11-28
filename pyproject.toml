@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aeromcp"
-version = "0.2.0"
+name = "aeromcp-engineering"
+version = "0.3.0"
 description = "Aerospace Engineering Model Context Protocol - bringing validated aerospace engineering computation to AI agents"
 requires-python = ">=3.11"
 license = "MIT"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aeromcp.aerodynamics import (
+from aeromcp_engineering.aerodynamics import (
     drag_force,
     dynamic_pressure,
     lift_coefficient,

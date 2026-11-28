@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from aeromcp.atmosphere import isa_troposphere
+from aeromcp_engineering.atmosphere import isa_troposphere
 
 SEA_LEVEL_TEMPERATURE_K = 288.15
 SEA_LEVEL_PRESSURE_PA = 101325.0

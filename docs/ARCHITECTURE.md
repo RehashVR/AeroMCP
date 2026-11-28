@@ -7,7 +7,7 @@ the Model Context Protocol (MCP) communication layer. The system is organized
 as a Python package using the src-layout:
 
 ```
-src/aeromcp/
+src/aeromcp_engineering/
     __init__.py        # Package initialization, version
     server.py          # MCP server interface with 10 registered tools
     core/
@@ -32,13 +32,13 @@ src/aeromcp/
 
 AeroMCP is designed so that engineering calculations are **independent of MCP**:
 
-- **Engineering layer** (`src/aeromcp/core/`, `aerodynamics/`, `atmosphere/`,
-  `astrodynamics/`): Pure Python functions that accept numeric inputs and
-  return computed results. These functions have no dependency on the MCP SDK
-  and can be imported and used directly in any Python program.
+- **Engineering layer** (`src/aeromcp_engineering/core/`, `aerodynamics/`,
+  `atmosphere/`, `astrodynamics/`): Pure Python functions that accept numeric
+  inputs and return computed results. These functions have no dependency on
+  the MCP SDK and can be imported and used directly in any Python program.
 
-- **MCP layer** (`src/aeromcp/server.py`): A thin interface that wraps
-  selected engineering functions as MCP tools. It handles protocol
+- **MCP layer** (`src/aeromcp_engineering/server.py`): A thin interface that
+  wraps selected engineering functions as MCP tools. It handles protocol
   communication, parameter validation at the tool boundary, and result
   serialization. It imports from the engineering layer but the engineering
   layer never imports from the MCP layer.

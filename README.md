@@ -60,11 +60,11 @@ The following ten tools are registered on the AeroMCP MCP server:
 AeroMCP follows a clean separation between engineering computation and MCP
 communication:
 
-- **Engineering layer** (`src/aeromcp/core/`, `aerodynamics/`, `atmosphere/`,
-  `astrodynamics/`): Pure Python functions with no MCP dependency.
-  Independently usable and testable.
-- **MCP layer** (`src/aeromcp/server.py`): A thin interface that wraps
-  engineering functions as MCP tools.
+- **Engineering layer** (`src/aeromcp_engineering/core/`, `aerodynamics/`,
+  `atmosphere/`, `astrodynamics/`): Pure Python functions with no MCP
+  dependency. Independently usable and testable.
+- **MCP layer** (`src/aeromcp_engineering/server.py`): A thin interface that
+  wraps engineering functions as MCP tools.
 
 ```mermaid
 graph TD
@@ -122,29 +122,30 @@ Add the following to your `opencode.jsonc` configuration:
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "servers": {
-      "aeromcp": {
+      "aeromcp-engineering": {
         "type": "local",
         "command": [
-          "C:\\AeroMCP\\.venv\\Scripts\\python.exe",
+          "python",
           "-m",
-          "aeromcp.server"
+          "aeromcp_engineering.server"
         ],
-        "cwd": "C:\\AeroMCP",
-        "codemode": false
+        "cwd": "<path-to-AeroMCP>",
+        "codemode": false,
+        "protocol": "2026-07-28"
       }
     }
   }
 }
 ```
 
-Replace `C:\\AeroMCP` with the actual path to your AeroMCP installation.
+Replace `<path-to-AeroMCP>` with the actual path to your AeroMCP installation.
 
 ## Example Tool Calls
 
 ### Dynamic Pressure
 
 ```python
-from aeromcp.aerodynamics import dynamic_pressure
+from aeromcp_engineering.aerodynamics import dynamic_pressure
 
 q = dynamic_pressure(density_kg_m3=1.225, velocity_m_s=50.0)
 # Result: 1531.25 Pa
@@ -153,7 +154,7 @@ q = dynamic_pressure(density_kg_m3=1.225, velocity_m_s=50.0)
 ### ISA Troposphere
 
 ```python
-from aeromcp.atmosphere import isa_troposphere
+from aeromcp_engineering.atmosphere import isa_troposphere
 
 props = isa_troposphere(geopotential_altitude_m=0.0)
 # Result: temperature=288.15 K, pressure=101325 Pa,
@@ -174,7 +175,7 @@ props = isa_troposphere(geopotential_altitude_m=0.0)
 ### Circular Orbital Velocity
 
 ```python
-from aeromcp.astrodynamics import circular_orbital_velocity
+from aeromcp_engineering.astrodynamics import circular_orbital_velocity
 
 MU_EARTH = 3.986004418e14
 
@@ -187,7 +188,7 @@ v = circular_orbital_velocity(
 ### Orbital Period
 
 ```python
-from aeromcp.astrodynamics import orbital_period
+from aeromcp_engineering.astrodynamics import orbital_period
 
 MU_EARTH = 3.986004418e14
 
@@ -198,7 +199,7 @@ T = orbital_period(central_body_mu_m3_s2=MU_EARTH, semi_major_axis_m=7_000_000.0
 ### Escape Velocity
 
 ```python
-from aeromcp.astrodynamics import escape_velocity
+from aeromcp_engineering.astrodynamics import escape_velocity
 
 MU_EARTH = 3.986004418e14
 
@@ -211,7 +212,7 @@ v_esc = escape_velocity(
 ### Hohmann Transfer
 
 ```python
-from aeromcp.astrodynamics import hohmann_transfer
+from aeromcp_engineering.astrodynamics import hohmann_transfer
 
 MU_EARTH = 3.986004418e14
 
